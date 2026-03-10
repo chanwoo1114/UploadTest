@@ -1,5 +1,5 @@
 from app.schema.upload_schema import UploadMethod, UploadResponse
-from app.utils.metrices import MetricsCollector, track_metrics
+from app.utils.metrics import MetricsCollector, track_metrics
 
 from pathlib import Path
 from fastapi import UploadFile
@@ -7,11 +7,11 @@ import aiofiles
 
 class SimpleUploadService:
     '''일반 업로드'''
-    def __init__(self, upload_dir: str):
+    def __init__(self, upload_dir: Path):
         self.upload_dir = upload_dir
         self.upload_dir.mkdir(parents=True, exist_ok=True)
 
-    async def upload(self, file: UploadFile):
+    async def upload(self, file: UploadFile) -> UploadResponse:
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
@@ -24,4 +24,9 @@ class SimpleUploadService:
             async with aiofiles.open(save_path, 'wb') as f:
                 await f.write(content)
 
+        summary = collector.get_summary()
+        return UploadResponse(
+            filename=file.filename,
+            metrics=summary
+        )
 

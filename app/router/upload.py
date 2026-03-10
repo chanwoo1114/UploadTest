@@ -1,7 +1,7 @@
 from fastapi import APIRouter, File, UploadFile
 from pathlib import Path
 
-from app.serivce.simple_upload import SimpleUploadService
+from app.service.simple_upload import SimpleUploadService
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent / "output"

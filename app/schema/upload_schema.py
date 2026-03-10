@@ -50,6 +50,4 @@ class UploadMetrics(BaseModel):
 
 class UploadResponse(BaseModel):
     filename: str
-    file_size: int
-    method: UploadMethod
     metrics: UploadMetrics
