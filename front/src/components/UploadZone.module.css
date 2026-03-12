@@ -1,0 +1,74 @@
+.zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 36px 24px;
+    text-align: center;
+    cursor: pointer;
+
+    background: var(--bg-secondary);
+}
+
+.zone:hover,
+.zone.dragOver {
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.05);
+}
+
+.input {
+    display: none;
+}
+
+.icon {
+    opacity: 0.5;
+    margin-bottom: 16px;
+}
+
+.title {
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.subtitle {
+    color: var(--text-muted);
+    font-size: 14px;
+}
+
+.fileInfo {
+    background-color: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+    align-items: center;
+    gap: 16px;
+    display: flex;
+}
+
+.fileIcon {
+    width: 40px;
+    height: 40px;
+    background: var(--gradient-1);
+    border-radius: 8px;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fileDetails {
+    flex: 1;
+    text-align: left;
+}
+
+.fileName {
+    font-weight: 500;
+    margin-bottom: 4px;
+    word-break: break-all;
+}
+
+.fileSize {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+}

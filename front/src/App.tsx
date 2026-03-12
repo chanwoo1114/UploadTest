@@ -1,7 +1,8 @@
 import styles from './App.module.css';
 import type {TabItem} from './types';
-import {Tabs} from './components/Tabs.tsx'
+import {Card, MethodSelector, Tabs, UploadZone} from './components'
 import {useState} from "react";
+import {File, Zap} from 'lucide-react';
 
 const TABS: TabItem[] = [
   { id: 'upload', label: '직접 업로드', icon: '📤' },
@@ -11,6 +12,8 @@ const TABS: TabItem[] = [
 
 function App() {
   const [activeTab, setActiveTab] = useState('upload');
+  const [file, setFile] = useState<File | null>(null);
+  const [method, setMethod] = useState<UploadMethod>('simple');
 
   return (
     <div className={styles.container}>
@@ -26,7 +29,19 @@ function App() {
       <div className={styles.grid}>
         {activeTab === 'upload' && (
           <>
-            <p>test</p>
+            <Card title={"파일 선택"} icon={File}>
+              <UploadZone
+                file={file}
+                onFileSelect={setFile}
+              />
+            </Card>
+
+            <Card title={"업로드 방식"} icon={Zap}>
+              <MethodSelector
+                selector={method}
+                onChange={setMethod()}
+              />
+            </Card>
           </>
         )}
       </div>
