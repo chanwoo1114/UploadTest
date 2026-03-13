@@ -1,184 +1,208 @@
-import asyncio
-from contextlib import asynccontextmanager
-import psutil
 import time
-from dataclasses import dataclass, field
-from typing import Optional
+import uuid
+import psutil
+import logging
 from datetime import datetime
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 
 from app.schema.upload_schema import (
-    UploadMethod, UploadMetrics,
-    CpuMetrics, MemoryMetrics, DiskMetrics, NetworkMetrics
+    UploadMethod,
+    UploadMetrics,
+    TimeBreakdown,
+    TimeSample,
+    CpuMetrics,
+    MemoryMetrics,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class MetricsCollector:
+    '''업로드 메트릭 수집기'''
     method: UploadMethod
-    file_size: int
+    file_size_bytes: int
+    run_id: str = ""
+    iteration: int = 1
 
-    _start_time: Optional[float] = None
-    _end_time: Optional[float] = None
+    _start_time: float = field(default=0.0, init=False)
+    _end_time: float = field(default=0.0, init=False)
+    _upload_end_time: float = field(default=0.0, init=False)
+    _started_at: datetime = field(default_factory=datetime.now, init=False)
+    _completed_at: datetime | None = field(default=None, init=False)
 
-    _started_at: Optional[datetime] = None
-    _completed_at: Optional[datetime] = None
+    _cpu_samples: list[tuple[float, float]] = field(default_factory=list, init=False)
+    _memory_samples: list[tuple[float, float]] = field(default_factory=list, init=False)
+    _memory_baseline: float = field(default=0.0, init=False)
 
-    _memory_samples: list[float] = field(default_factory=list)
-    _cpu_samples: list[float] = field(default_factory=list)
+    _chunk_size_bytes: int | None = field(default=None, init=False)
+    _chunk_count: int | None = field(default=None, init=False)
+    _concurrency: int | None = field(default=None, init=False)
 
-    _disk_speed_samples: list[float] = field(default_factory=list)
-    _net_speed_samples: list[float] = field(default_factory=list)
+    _success: bool = field(default=True, init=False)
+    _error_message: str | None = field(default=None, init=False)
 
-    _start_disk_write: int = 0
-    _end_disk_write: int = 0
-
-    _start_net_recv: int = 0
-    _end_net_recv: int = 0
-
-    _prev_time: float = 0.0
-    _prev_disk_write: int = 0
-    _prev_net_recv: int = 0
-
-    _sampling_task: Optional[asyncio.Task] = None
-    _is_collecting: bool = False
-
-    _process: psutil.Process = field(default_factory=psutil.Process)
-
-    def start(self):
+    def start(self) -> None:
         '''측정 시작'''
-        self._process.cpu_percent()
-
-        self._start_disk_write = self._get_disk_write_bytes()
-        self._start_net_recv = psutil.net_io_counters().bytes_recv
         self._start_time = time.perf_counter()
-
-        self._prev_disk_write = self._start_disk_write
-        self._prev_net_recv = self._start_net_recv
-        self._prev_time = self._start_time
-
         self._started_at = datetime.now()
-        self._is_collecting = True
-        self._sample_metrics()
+        if not self.run_id:
+            self.run_id = uuid.uuid4().hex[:12]
 
-    def stop(self):
+        try:
+            psutil.Process().cpu_percent(interval=None)
+        except Exception:
+            pass
+
+        self._memory_baseline = self._get_memory_mb()
+        self.sample()
+        logger.debug(f"Metrics collection started for {self.method.value}")
+
+    def mark_upload_done(self) -> None:
+        '''업로드(전송) 완료 시점 기록'''
+        self._upload_end_time = time.perf_counter()
+
+    def stop(self) -> None:
         '''측정 종료'''
         self._end_time = time.perf_counter()
         self._completed_at = datetime.now()
-        self._is_collecting = False
+        if not self._upload_end_time:
+            self._upload_end_time = self._end_time
+        self.sample()
+        logger.debug(f"Metrics collection stopped for {self.method.value}")
 
-        self._end_disk_write = self._get_disk_write_bytes()
-        self._end_net_recv = psutil.net_io_counters().bytes_recv
-
-        self._sample_metrics()
-
-    def _get_disk_write_bytes(self):
-        '''현재 프로세스의 누적 디스크 쓰기 바이트 반환'''
+    def sample(self) -> None:
+        '''CPU, 메모리 시계열 샘플 수집'''
+        elapsed = time.perf_counter() - self._start_time if self._start_time else 0.0
         try:
-            return self._process.io_counters().write_bytes
-        except (AttributeError, psutil.AccessDenied):
-            return 0
+            proc = psutil.Process()
+            cpu = proc.cpu_percent(interval=None)
+            self._cpu_samples.append((elapsed, cpu))
 
-    def _sample_metrics(self):
-        '''메모리, CPU 및 디스크/네트워크 순간 속도 측정'''
-        memory_mb = self._process.memory_info().rss / (1024 * 1024)
-        self._memory_samples.append(memory_mb)
+            mem_mb = proc.memory_info().rss / (1024 * 1024)
+            self._memory_samples.append((elapsed, mem_mb))
+        except Exception as e:
+            logger.warning(f"Failed to sample metrics: {e}")
 
-        cpu_percent = self._process.cpu_percent()
-        self._cpu_samples.append(cpu_percent)
+    def set_chunk_info(self, chunk_size: int, chunk_count: int) -> None:
+        '''청크/파트 정보 설정'''
+        self._chunk_size_bytes = chunk_size
+        self._chunk_count = chunk_count
 
-        current_time = time.perf_counter()
-        current_disk = self._get_disk_write_bytes()
-        current_net = psutil.net_io_counters().bytes_recv
+    def set_concurrency(self, concurrency: int) -> None:
+        '''동시성 설정'''
+        self._concurrency = concurrency
 
-        time_delta = current_time - self._prev_time
+    def set_error(self, message: str) -> None:
+        '''에러 설정'''
+        self._success = False
+        self._error_message = message
 
-        if time_delta > 0:
-            disk_speed_mb_s = ((current_disk - self._prev_disk_write) / time_delta) / (1024 * 1024)
-            net_speed_mb_s = ((current_net - self._prev_net_recv) / time_delta) / (1024 * 1024)
+    def build_metrics(self) -> UploadMetrics:
+        '''최종 메트릭 생성 (미종료 시 자동 종료)'''
+        if not self._end_time:
+            self.stop()
 
-            self._disk_speed_samples.append(disk_speed_mb_s)
-            self._net_speed_samples.append(net_speed_mb_s)
-
-        self._prev_time = current_time
-        self._prev_disk_write = current_disk
-        self._prev_net_recv = current_net
-
-    async def start_continue_sampling(self, interval: float = 0.1):
-        '''연속 지표 수집'''
-        self._is_collecting = True
-
-        async def _sample_loop():
-            try:
-                while self._is_collecting:
-                    self._sample_metrics()
-                    await asyncio.sleep(interval)
-            except asyncio.CancelledError:
-                pass
-
-        self._sampling_task = asyncio.create_task(_sample_loop())
-
-    def stop_continuous_sampling(self):
-        """연속 지표 수집 중지"""
-        self._is_collecting = False
-        if self._sampling_task:
-            self._sampling_task.cancel()
-
-    def get_summary(self, success: bool = True) -> UploadMetrics:
-        '''최종 결과 요약'''
-        total_time = self._end_time - self._start_time if self._end_time else 0.0
-
-        target_size_mb = self.file_size / (1024 * 1024)
-        app_avg_speed = target_size_mb / total_time if total_time > 0 else 0
-
-        calc_max = lambda samples: round(max(samples), 2) if samples else 0.0
-        calc_avg = lambda samples: round(sum(samples) / len(samples), 2) if samples else 0.0
-
-        disk_total_mb = (self._end_disk_write - self._start_disk_write) / (1024 * 1024)
-        net_total_mb = (self._end_net_recv - self._start_net_recv) / (1024 * 1024)
+        total_sec = self._end_time - self._start_time
+        upload_sec = self._upload_end_time - self._start_time if self._upload_end_time else total_sec
+        processing_sec = max(0.0, total_sec - upload_sec)
 
         return UploadMetrics(
             method=self.method,
-            file_size_bytes=self.file_size,
-            target_file_size_mb=round(target_size_mb, 2),
-            total_time_sec=round(total_time, 3),
-            app_avg_speed_mb_s=round(app_avg_speed, 2),
-            started_at=self._started_at or datetime.now(),
+            file_size_bytes=self.file_size_bytes,
+            started_at=self._started_at,
             completed_at=self._completed_at or datetime.now(),
-            success=success,
-
-            cpu=CpuMetrics(
-                peak=calc_max(self._cpu_samples),
-                avg=calc_avg(self._cpu_samples)
+            success=self._success,
+            error_message=self._error_message,
+            time=TimeBreakdown(
+                total_sec=round(total_sec, 6),
+                upload_sec=round(upload_sec, 6),
+                processing_sec=round(processing_sec, 6),
             ),
-            memory=MemoryMetrics(
-                peak=calc_max(self._memory_samples),
-                avg=calc_avg(self._memory_samples)
-            ),
-            disk=DiskMetrics(
-                total_mb=round(disk_total_mb, 2),
-                speed_peak=calc_max(self._disk_speed_samples),
-                speed_avg=round(disk_total_mb / total_time, 2) if total_time > 0 else 0.0
-            ),
-            network=NetworkMetrics(
-                total_mb=round(net_total_mb, 2),
-                speed_peak=calc_max(self._net_speed_samples),
-                speed_avg=round(net_total_mb / total_time, 2) if total_time > 0 else 0.0
-            )
+            chunk_size_bytes=self._chunk_size_bytes,
+            chunk_count=self._chunk_count,
+            concurrency=self._concurrency,
+            cpu=self._build_cpu(),
+            memory=self._build_memory(),
+            run_id=self.run_id,
+            iteration=self.iteration,
         )
+
+    def _build_cpu(self) -> CpuMetrics:
+        '''CPU 메트릭 + 시계열 빌드'''
+        values = [v for _, v in self._cpu_samples]
+        if not values:
+            return CpuMetrics(peak=0.0, avg=0.0, samples=[])
+        return CpuMetrics(
+            peak=round(max(values), 2),
+            avg=round(sum(values) / len(values), 2),
+            samples=[TimeSample(elapsed_sec=round(t, 6), value=round(v, 2)) for t, v in self._cpu_samples],
+        )
+
+    def _build_memory(self) -> MemoryMetrics:
+        '''메모리 메트릭 + baseline + 시계열 빌드'''
+        values = [v for _, v in self._memory_samples]
+        if not values:
+            return MemoryMetrics(baseline_mb=0.0, peak=0.0, avg=0.0, samples=[])
+        return MemoryMetrics(
+            baseline_mb=round(self._memory_baseline, 2),
+            peak=round(max(values), 2),
+            avg=round(sum(values) / len(values), 2),
+            samples=[TimeSample(elapsed_sec=round(t, 6), value=round(v, 2)) for t, v in self._memory_samples],
+        )
+
+    @staticmethod
+    def _get_memory_mb() -> float:
+        '''현재 프로세스 메모리 (MB)'''
+        try:
+            return psutil.Process().memory_info().rss / (1024 * 1024)
+        except Exception:
+            return 0.0
 
 
 @asynccontextmanager
-async def track_metrics(method: str, file_size: int, continue_sampling: bool = True):
-    collector = MetricsCollector(method=method, file_size=file_size)
+async def track_metrics(
+    method: UploadMethod,
+    file_size_bytes: int,
+    run_id: str = "",
+    iteration: int = 1,
+):
+    '''메트릭 수집 컨텍스트 매니저'''
+    collector = MetricsCollector(
+        method=method,
+        file_size_bytes=file_size_bytes,
+        run_id=run_id,
+        iteration=iteration,
+    )
     collector.start()
-
-    if continue_sampling:
-        await collector.start_continue_sampling()
-
     try:
         yield collector
-
     finally:
-        if continue_sampling:
-            collector.stop_continuous_sampling()
         collector.stop()
+
+
+class ProgressTracker:
+    '''진행률 추적 + 주기적 샘플링'''
+
+    def __init__(self, total_size: int, collector: MetricsCollector | None = None):
+        self.total_size = total_size
+        self.current_size = 0
+        self.collector = collector
+        self._last_sample = time.perf_counter()
+        self._sample_interval = 0.25  # 250ms마다 샘플링
+
+    def update(self, bytes_received: int) -> float:
+        '''진행률 업데이트 + 필요 시 샘플링'''
+        self.current_size += bytes_received
+        now = time.perf_counter()
+
+        if self.collector and (now - self._last_sample) >= self._sample_interval:
+            self.collector.sample()
+            self._last_sample = now
+
+        return self.get_progress()
+
+    def get_progress(self) -> float:
+        '''현재 진행률 반환'''
+        return (self.current_size / self.total_size) * 100 if self.total_size > 0 else 0

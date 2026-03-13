@@ -1,6 +1,6 @@
 import type {LucideIcon} from 'lucide-react';
 import styles from './Card.module.css'
-import {ReactNode} from "react";
+import type {ReactNode} from "react";
 
 
 interface CardProps  {

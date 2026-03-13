@@ -1,6 +1,6 @@
 import styles from './App.module.css';
-import type {TabItem} from './types';
-import {Card, MethodSelector, Tabs, UploadZone} from './components'
+import type {TabItem, UploadMethod} from './types';
+import {Button, Card, MethodSelector, Tabs, UploadZone} from './components'
 import {useState} from "react";
 import {File, Zap} from 'lucide-react';
 
@@ -24,7 +24,7 @@ function App() {
         </p>
       </header>
 
-      <Tabs tabs={TABS} />
+      <Tabs tabs={TABS} activeTab={activeTab} onChange={setActiveTab} />
 
       <div className={styles.grid}>
         {activeTab === 'upload' && (
@@ -38,10 +38,18 @@ function App() {
 
             <Card title={"업로드 방식"} icon={Zap}>
               <MethodSelector
-                selector={method}
-                onChange={setMethod()}
+                selected={method}
+                onChange={setMethod}
               />
+
+              <Button>
+                업로드 시작
+              </Button>
+
             </Card>
+
+
+
           </>
         )}
       </div>
