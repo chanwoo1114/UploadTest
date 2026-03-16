@@ -1,32 +1,49 @@
 from app.schema.upload_schema import UploadMethod, UploadResponse
-from app.utils.metrics import MetricsCollector, track_metrics
+from app.utils.metrics import track_metrics
 
+import uuid
+import logging
 from pathlib import Path
 from fastapi import UploadFile
-import aiofiles
+import asyncio
+import shutil
+
+logger = logging.getLogger(__name__)
 
 class SimpleUploadService:
-    '''일반 업로드'''
-    def __init__(self, upload_dir: Path):
-        self.upload_dir = upload_dir
-        self.upload_dir.mkdir(parents=True, exist_ok=True)
+    '''Simple Upload Service - 한 번에 전체 파일 전송'''
 
-    async def upload(self, file: UploadFile) -> UploadResponse:
+    @staticmethod
+    async def upload(
+        file: UploadFile,
+        upload_dir: Path,
+        run_id: str = "",
+        iteration: int = 1
+    ) -> UploadResponse:
+        filename = file.filename or "unknown"
+
+        # 파일 크기 확인 (복사 없이)
+        await file.seek(0)
         file.file.seek(0, 2)
         file_size = file.file.tell()
         file.file.seek(0)
 
-        save_path = self.upload_dir / Path(file.filename)
+        logger.info(f"Simple upload started: {filename} ({file_size} bytes)")
 
-        async with track_metrics(UploadMethod.SIMPLE, file_size) as collector:
-            content = await file.read()
+        async with track_metrics(UploadMethod.SIMPLE, file_size, run_id, iteration) as collector:
+            file_id = str(uuid.uuid4())
+            file_path = upload_dir / f"{file_id}_{filename}"
 
-            async with aiofiles.open(save_path, 'wb') as f:
-                await f.write(content)
+            def _copy():
+                with open(file_path, "wb") as dst:
+                    shutil.copyfileobj(file.file, dst)
 
-        summary = collector.get_summary()
-        return UploadResponse(
-            filename=file.filename,
-            metrics=summary
-        )
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _copy)
 
+            collector.mark_upload_done()
+            metrics = collector.build_metrics()
+
+        logger.info(f"Simple upload completed: {file_id} in {metrics.time.total_sec:.3f}s")
+
+        return UploadResponse(filename=filename, metrics=metrics)

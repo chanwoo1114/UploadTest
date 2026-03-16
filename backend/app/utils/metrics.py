@@ -36,6 +36,9 @@ class MetricsCollector:
     _memory_samples: list[tuple[float, float]] = field(default_factory=list, init=False)
     _memory_baseline: float = field(default=0.0, init=False)
 
+    _prev_cpu_sec: float = field(default=0.0, init=False)
+    _prev_sample_time: float = field(default=0.0, init=False)
+
     _chunk_size_bytes: int | None = field(default=None, init=False)
     _chunk_count: int | None = field(default=None, init=False)
     _concurrency: int | None = field(default=None, init=False)
@@ -51,9 +54,11 @@ class MetricsCollector:
             self.run_id = uuid.uuid4().hex[:12]
 
         try:
-            psutil.Process().cpu_percent(interval=None)
+            ct = psutil.Process().cpu_times()
+            self._prev_cpu_sec = ct.user + ct.system
         except Exception:
-            pass
+            self._prev_cpu_sec = 0.0
+        self._prev_sample_time = self._start_time
 
         self._memory_baseline = self._get_memory_mb()
         self.sample()
@@ -74,11 +79,21 @@ class MetricsCollector:
 
     def sample(self) -> None:
         '''CPU, 메모리 시계열 샘플 수집'''
-        elapsed = time.perf_counter() - self._start_time if self._start_time else 0.0
+        now = time.perf_counter()
+        elapsed = now - self._start_time if self._start_time else 0.0
         try:
             proc = psutil.Process()
-            cpu = proc.cpu_percent(interval=None)
-            self._cpu_samples.append((elapsed, cpu))
+
+            ct = proc.cpu_times()
+            current_cpu_sec = ct.user + ct.system
+            dt = now - self._prev_sample_time
+            if dt > 0:
+                cpu_pct = ((current_cpu_sec - self._prev_cpu_sec) / dt) * 100
+            else:
+                cpu_pct = 0.0
+            self._prev_cpu_sec = current_cpu_sec
+            self._prev_sample_time = now
+            self._cpu_samples.append((elapsed, max(0.0, cpu_pct)))
 
             mem_mb = proc.memory_info().rss / (1024 * 1024)
             self._memory_samples.append((elapsed, mem_mb))
@@ -167,8 +182,11 @@ async def track_metrics(
     file_size_bytes: int,
     run_id: str = "",
     iteration: int = 1,
+    sample_interval: float = 0.01,
 ):
-    '''메트릭 수집 컨텍스트 매니저'''
+    '''메트릭 수집 컨텍스트 매니저 (백그라운드 자동 샘플링 포함)'''
+    import asyncio
+
     collector = MetricsCollector(
         method=method,
         file_size_bytes=file_size_bytes,
@@ -176,9 +194,25 @@ async def track_metrics(
         iteration=iteration,
     )
     collector.start()
+
+    async def _bg_sampler():
+        '''백그라운드 주기적 샘플링'''
+        try:
+            while True:
+                await asyncio.sleep(sample_interval)
+                collector.sample()
+        except asyncio.CancelledError:
+            pass
+
+    task = asyncio.create_task(_bg_sampler())
     try:
         yield collector
     finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
         collector.stop()
 
 
