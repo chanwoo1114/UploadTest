@@ -1,6 +1,6 @@
 import styles from './App.module.css';
 import type {TabItem, UploadMethod, UploadProgress, UploadResult} from './types';
-import {Button, Card, MethodSelector, ProgressBar, Tabs, UploadZone,} from './components'
+import {BenchmarkResults, Button, Card, MethodSelector, ProgressBar, Tabs, UploadZone} from './components'
 import {useCallback, useRef, useState} from "react";
 import {File as FileIcon, Zap} from 'lucide-react';
 import {uploadFile} from './services/api';
@@ -84,11 +84,14 @@ function App() {
                 {isUploading ? '업로드 중...' : '업로드 시작'}
               </Button>
               {showProgress && <ProgressBar progress={progress} />}
-
             </Card>
 
+            {results.length > 0 && (
+              <BenchmarkResults
+                results={results}
 
-
+              />
+            )}
           </>
         )}
       </div>

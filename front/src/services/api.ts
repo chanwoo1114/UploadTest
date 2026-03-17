@@ -1,4 +1,4 @@
-import type {UploadMethod, UploadProgress, UploadResult} from '../types';
+import type {TimeSample, UploadMethod, UploadProgress, UploadResult} from '../types';
 
 type OnProgress = (progress: UploadProgress) => void;
 
@@ -17,23 +17,42 @@ function makeProgress(
   return { status, percent, uploadedBytes: uploaded, totalBytes: total, speed, elapsedSec };
 }
 
-function toResult(
-  method: string,
-  fileSize: number,
-  metrics: any,
-): UploadResult {
+function parseMetrics(method: string, fileSize: number, metrics: any): UploadResult {
   const timeSec = metrics?.time?.total_sec ?? 0;
+  const uploadSec = metrics?.time?.upload_sec ?? timeSec;
+  const processingSec = metrics?.time?.processing_sec ?? 0;
   const throughput = timeSec > 0 ? (fileSize / 1024 / 1024) / timeSec : 0;
-  const memoryMB = metrics?.memory?.peak ?? 0;
+
+  const cpuSamples: TimeSample[] = (metrics?.cpu?.samples ?? []).map((s: any) => ({
+    elapsedSec: s.elapsed_sec,
+    value: s.value,
+  }));
+
+  const memorySamples: TimeSample[] = (metrics?.memory?.samples ?? []).map((s: any) => ({
+    elapsedSec: s.elapsed_sec,
+    value: s.value,
+  }));
+
   return {
     method,
     fileSize,
+    success: metrics?.success ?? true,
     timeSec,
+    uploadSec,
+    processingSec,
     throughputMBps: throughput,
-    memoryMB,
+    networkSpeedMBps: metrics?.network?.speed_avg_mbps ?? 0,
+    cpuPeak: metrics?.cpu?.peak ?? 0,
+    cpuAvg: metrics?.cpu?.avg ?? 0,
+    cpuSamples,
+    memoryPeak: metrics?.memory?.peak ?? 0,
+    memoryAvg: metrics?.memory?.avg ?? 0,
+    memorySamples,
     progressAccuracy: 100,
   };
 }
+
+export { parseMetrics };
 
 async function simpleUpload(
   file: File,
@@ -67,7 +86,7 @@ async function simpleUpload(
   });
 
   onProgress(makeProgress('complete', total, total, startTime));
-  return toResult('Simple', total, result.metrics);
+  return parseMetrics('Simple', total, result.metrics);
 }
 
 

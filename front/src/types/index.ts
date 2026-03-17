@@ -20,15 +20,34 @@ export interface UploadProgress {
   percent: number;
   uploadedBytes: number;
   totalBytes: number;
-  speed: number;
+  speed: number;       // bytes/sec
   elapsedSec: number;
+}
+
+export interface TimeSample {
+  elapsedSec: number;
+  value: number;
 }
 
 export interface UploadResult {
   method: string;
   fileSize: number;
+  success: boolean;
+
   timeSec: number;
+  uploadSec: number;
+  processingSec: number;
+
   throughputMBps: number;
-  memoryMB: number;
+  networkSpeedMBps: number;
+
+  cpuPeak: number;
+  cpuAvg: number;
+  cpuSamples: TimeSample[];
+
+  memoryPeak: number;
+  memoryAvg: number;
+  memorySamples: TimeSample[];
+
   progressAccuracy: number;
 }
