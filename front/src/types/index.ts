@@ -20,7 +20,7 @@ export interface UploadProgress {
   percent: number;
   uploadedBytes: number;
   totalBytes: number;
-  speed: number;       // bytes/sec
+  speed: number;
   elapsedSec: number;
 }
 

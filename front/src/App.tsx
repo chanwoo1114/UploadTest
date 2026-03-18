@@ -1,7 +1,7 @@
 import styles from './App.module.css';
 import type {TabItem, UploadMethod, UploadProgress, UploadResult} from './types';
 import {BenchmarkResults, Button, Card, MethodSelector, ProgressBar, Tabs, UploadZone} from './components'
-import {useCallback, useRef, useState} from "react";
+import {useCallback, useMemo, useRef, useState} from "react";
 import {File as FileIcon, Zap} from 'lucide-react';
 import {uploadFile} from './services/api';
 
@@ -50,6 +50,11 @@ function App() {
     }
   }, [file, method, isUploading, results.length]);
 
+  const uploadElapsed = useMemo(() => {
+    if (results.length === 0 || firstUploadTime.current === 0) return 0;
+    return results.reduce((sum, r) => sum + r.timeSec, 0);
+  }, [results]);
+
   return (
     <div className={styles.container}>
       <header className={styles.header}>
@@ -89,14 +94,13 @@ function App() {
             {results.length > 0 && (
               <BenchmarkResults
                 results={results}
-
+                totalTests={results.length}
+                elapsedSec={uploadElapsed}
               />
             )}
           </>
         )}
       </div>
-
-
     </div>
   )
 }

@@ -27,5 +27,12 @@ export const METHODS: Record<UploadMethod, MethodInfo> = {
   }
 };
 
+export const METHOD_COLORS: Record<string, string> = {
+  Simple: '#10b981',
+  Chunked: '#3b82f6',
+  Streaming: '#8b5cf6',
+  Multipart: '#f59e0b',
+};
+
 export const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024;
 export const DEFAULT_PART_SIZE = 10 * 1024 * 1024;

@@ -7,13 +7,27 @@ interface CardProps  {
   children: ReactNode;
   title: string;
   icon?: LucideIcon;
+  variant?: 'default' | 'chart' | 'summary';
 }
 
-export function Card({ children, title, icon: Icon, }: CardProps) {
+const CARD_CLASS = {
+  default: styles.card,
+  summary: styles.summaryCard
+}
+
+const TITLE_CLASS = {
+  default: styles.title,
+  summary: ''
+}
+
+export function Card({ children, title, icon: Icon, variant = "default"}: CardProps) {
+  const cardClass = CARD_CLASS[variant];
+  const titleClass = TITLE_CLASS[variant];
+
   return (
-    <div className={styles.card}>
+    <div className={cardClass}>
       {title && (
-        <div className={styles.title}>
+        <div className={titleClass}>
           {Icon && <Icon size={20} className={styles.icon} />}
           {title}
         </div>

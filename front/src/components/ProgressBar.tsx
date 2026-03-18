@@ -34,7 +34,7 @@ export function ProgressBar({ progress }: ProgressBarProps) {
         </div>
         <div className={styles.stat}>
           <div className={styles.statValue}>{speedStr}</div>
-          <div className={styles.statLabel}>속도</div>
+          <div className={styles.statLabel}>클라이언트 속도</div>
         </div>
         <div className={styles.stat}>
           <div className={styles.statValue}>{timeStr}</div>

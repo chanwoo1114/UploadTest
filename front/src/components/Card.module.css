@@ -32,3 +32,10 @@
 .icon {
     opacity: 0.7;
 }
+
+.summaryCard {
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+}

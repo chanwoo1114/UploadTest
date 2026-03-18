@@ -104,5 +104,7 @@ export async function uploadFile(
     //   return streamingUpload(file, onProgress);
     // case 'multipart_parallel':
     //   return multipartUpload(file, onProgress);
+    default:
+      throw new Error(`지원하지 않는 업로드 방식: ${method}`);
   }
 }
