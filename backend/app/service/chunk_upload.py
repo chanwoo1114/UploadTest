@@ -45,7 +45,7 @@ class ChunkSession:
 
 
 
-class ChunkUploadService:
+class ChunkedUploadService:
     '''Chunk 업로드 서비스'''
     _sessions: dict[str, ChunkSession] = {}
     _collectors: dict[str, MetricsCollector] = {}
@@ -100,11 +100,34 @@ class ChunkUploadService:
         )
 
     @classmethod
-    async def get_status(cls, session_id: str) -> ChunkStatusResponse:
+    # async def upload_chunk(cls, session_id: str, chunk_number: int, chunk_data: bytes) -> ChunkUploadResponse:
+
+
+    @classmethod
+    async def get_status(cls, session_id: str, base_dir: Path) -> ChunkStatusResponse:
         '''세션 상태 조회'''
-        print(cls._sessions)
         session = cls._sessions.get(session_id)
-        print(f"session:{session}" )
+        if not session:
+            session = await cls._load_session(session_id, base_dir)
+            if not session:
+                raise ValueError(f"Session not found: {session_id}")
+
+        all_chunks = set(range(1, session.total_chunks + 1))
+        uploaded = set(session.uploaded_chunks)
+        remaining = sorted(all_chunks - uploaded)
+
+        progress = (len(uploaded) / session.total_chunks) * 100 if session.total_chunks > 0 else 0
+
+        return ChunkStatusResponse(
+            session_id=session_id,
+            filename=session.filename,
+            total_chunks=session.total_chunks,
+            uploaded_chunks=sorted(session.uploaded_chunks),
+            remaining_chunks=remaining,
+            total_size=session.total_size,
+            uploaded_size=session.uploaded_size,
+            progress_percent=progress,
+        )
 
 
     @classmethod
@@ -114,3 +137,14 @@ class ChunkUploadService:
         async with aiofiles.open(session_dir, "w") as f:
             await f.write(json.dumps(session.to_dict()))
 
+    @classmethod
+    async def _load_session(cls, session_id: str, base_dir: Path) -> ChunkSession:
+        '''세션 로드'''
+        session_path = base_dir / 'sessions' / f"{session_id}.json"
+
+        if not session_path.exists():
+            return None
+
+        async with aiofiles.open(session_path, "r") as f:
+            data = json.loads(await f.read())
+            return ChunkSession.from_dict(data)

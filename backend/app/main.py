@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from app.router.upload import (
     simple_router,
     streaming_router,
-    chunk_router,
+    chunked_router,
 
 )
 from app.router.clean_up_router import admin_router
@@ -60,5 +60,5 @@ app.add_middleware(
 
 app.include_router(simple_router)
 app.include_router(streaming_router)
-app.include_router(chunk_router)
+app.include_router(chunked_router)
 app.include_router(admin_router)
