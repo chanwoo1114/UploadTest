@@ -59,8 +59,6 @@ async def create_chunk_session(request: ChunkSessionRequest):
         logger.error(f"Failed to create chunk session: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
 @chunked_router.post("/sessions/{session_id}/chunks/{chunk_number}", response_model=ChunkUploadResponse)
 async def upload_chunk(
     session_id: str,
@@ -70,7 +68,7 @@ async def upload_chunk(
     '''청크 업로드'''
     try:
         chunk_data = await chunk.read()
-        return await ChunkedUploadService.upload_chunk(session_id, chunk_number, chunk_data)
+        return await ChunkedUploadService.upload_chunk(session_id, chunk_number, chunk_data, BASE_DIR)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -90,5 +88,13 @@ async def get_chunk_status(session_id: str):
         logger.error(f"Failed to get chunk status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# @chunked_router.post("/sessions/{session_id}/complete")
-# async def complete_chunk_upload(session_id: str, file: UploadFile = File(...)):
+@chunked_router.post("/sessions/{session_id}/complete", response_model=ChunkCompleteResponse)
+async def complete_chunk_upload(session_id: str):
+    '''청크 업로드 완료'''
+    try:
+        return await ChunkedUploadService.complete(session_id, BASE_DIR)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to complete chunk upload: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
