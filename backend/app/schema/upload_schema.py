@@ -128,6 +128,61 @@ class StreamingUploadResponse(BaseModel):
     metrics: UploadMetrics
 
 
+class MultipartInitRequest(BaseModel):
+    '''멀티파트 초기화 요청'''
+    filename: str
+    total_size: int
+    part_size: int = Field(default=5 * 1024 * 1024, description="파트 크기 (기본 5MB)")
+
+
+class PartUploadUrl(BaseModel):
+    '''파트 업로드 URL 정보'''
+    part_number: int
+    url: str
+    expected_size: int
+
+
+class MultipartInitResponse(BaseModel):
+    '''멀티파트 초기화 응답'''
+    upload_id: str
+    filename: str
+    total_parts: int
+    part_size: int
+    upload_urls: list[PartUploadUrl]
+    created_at: datetime
+    expires_at: datetime
+
+
+class PartUploadResponse(BaseModel):
+    '''파트 업로드 응답'''
+    upload_id: str
+    part_number: int
+    etag: str
+    size: int
+
+
+class PartCompleteInfo(BaseModel):
+    '''파트 완료 정보'''
+    part_number: int
+    etag: str
+    size: int
+
+
+class MultipartCompleteRequest(BaseModel):
+    '''멀티파트 완료 요청'''
+    upload_id: str
+    parts: list[PartCompleteInfo]
+
+
+class MultipartCompleteResponse(BaseModel):
+    '''멀티파트 완료 응답'''
+    file_id: str
+    filename: str
+    total_size: int
+    total_parts: int
+    metrics: UploadMetrics
+
+
 class BenchmarkRequest(BaseModel):
     '''벤치마크 요청'''
     file_sizes_mb: list[int] = Field(default=[1, 10, 50], description="테스트할 파일 크기 (MB)")

@@ -11,9 +11,13 @@ from app.schema.upload_schema import (
     ChunkSessionResponse,
     ChunkUploadResponse,
     ChunkStatusResponse,
-    ChunkCompleteResponse
+    ChunkCompleteResponse,
+    MultipartInitResponse,
+    MultipartInitRequest,
+    PartUploadResponse,
 )
 from app.service.streaming_upload import StreamingUploadService
+from app.service.multipart_upload import MultipartUploadService
 
 logger = logging.getLogger(__name__)
 
@@ -97,4 +101,32 @@ async def complete_chunk_upload(session_id: str):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to complete chunk upload: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+multipart_router = APIRouter(prefix="/multipart", tags=["Multipart Upload"])
+
+@multipart_router.post("/init", response_model=MultipartInitResponse)
+async def init_multipart_upload(request: MultipartInitRequest):
+    '''멀티파트 업로드 초기화'''
+    try:
+        return await MultipartUploadService.init_upload(request)
+    except Exception as e:
+        logger.error(f"Failed to init multipart upload: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@multipart_router.post("/{upload_id}/parts/{part_number}", response_model=PartUploadResponse)
+async def upload_part(
+    upload_id: str,
+    part_number: int,
+    part: UploadFile = File(...)
+):
+    '''파트 업로드'''
+    try:
+        part_data = await part.read()
+        return await MultipartUploadService.upload_part(upload_id, part_number, part_data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Part upload failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
