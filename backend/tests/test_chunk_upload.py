@@ -105,8 +105,3 @@ def test_chunk_upload(file_path: str, size: int, type: str, session_id: str = No
     print(f"\n[완료] 응답 코드: {complete_resp.status_code}")
     complete_data = complete_resp.json()
     print(f"[완료] 응답: {complete_data}")
-
-
-test_path = Path(__file__).parent.parent / 'app' / 'data' / 'output'
-# test_chunk_upload(test_path, 1, "gb")
-# test_chunk_upload(test_path, 1, "gb", session_id="30f47f40-0720-4074-9f67-68b6d3c5e3d9")
