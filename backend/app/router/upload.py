@@ -54,7 +54,7 @@ chunked_router = APIRouter(prefix="/chunk", tags=["Chunk Upload"])
 async def create_chunk_session(request: ChunkSessionRequest):
     '''청크 업로드 세션 생성'''
     try:
-        return await ChunkedUploadService.create_session(request)
+        return await ChunkedUploadService.create_session(request, BASE_DIR)
     except Exception as e:
         logger.error(f"Failed to create chunk session: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -79,7 +79,7 @@ async def upload_chunk(
 async def get_chunk_status(session_id: str):
     '''청크 세션 상태 조회'''
     try:
-        return await ChunkedUploadService.get_status(session_id)
+        return await ChunkedUploadService.get_status(session_id, BASE_DIR)
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
