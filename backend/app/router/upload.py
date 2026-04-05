@@ -11,7 +11,10 @@ from app.schema.upload_schema import (
     ChunkSessionResponse,
     ChunkUploadResponse,
     ChunkStatusResponse,
-    ChunkCompleteResponse
+    ChunkCompleteResponse,
+    S3InitRequest,
+    S3InitResponse,
+
 )
 from app.service.streaming_upload import StreamingUploadService
 
@@ -54,7 +57,7 @@ chunked_router = APIRouter(prefix="/chunk", tags=["Chunk Upload"])
 async def create_chunk_session(request: ChunkSessionRequest):
     '''청크 업로드 세션 생성'''
     try:
-        return await ChunkedUploadService.create_session(request)
+        return await ChunkedUploadService.create_session(request, BASE_DIR)
     except Exception as e:
         logger.error(f"Failed to create chunk session: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -79,7 +82,7 @@ async def upload_chunk(
 async def get_chunk_status(session_id: str):
     '''청크 세션 상태 조회'''
     try:
-        return await ChunkedUploadService.get_status(session_id)
+        return await ChunkedUploadService.get_status(session_id, BASE_DIR)
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -97,4 +100,16 @@ async def complete_chunk_upload(session_id: str):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Failed to complete chunk upload: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+'''s3 multipart 생성'''
+s3_router = APIRouter(prefix="/s3", tags=["S3 Upload"])
+
+@s3_router.post("/init", response_model=S3InitResponse)
+async def init_s3_upload(request: S3InitRequest):
+    '''S3 스타일 업로드 초기화'''
+    try:
+        return await S3UploadService.init_upload(request)
+    except Exception as e:
+        logger.error(f"Failed to init S3 upload: {e}")
         raise HTTPException(status_code=500, detail=str(e))

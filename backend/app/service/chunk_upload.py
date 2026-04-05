@@ -104,7 +104,7 @@ class ChunkedUploadService:
         session = cls._sessions.get(session_id)
 
         if not session:
-            session = await cls._load_session(session_id)
+            session = await cls._load_session(session_id, base_dir)
 
             if not session:
                 raise ValueError(f"Session not found: {session_id}")
@@ -125,8 +125,7 @@ class ChunkedUploadService:
         collector = cls._collectors.get(session_id)
         if collector:
             progress = (len(session.uploaded_chunks) / session.total_chunks) * 100
-            collector.report_progress(progress)
-            collector.sample_memory()
+            collector.sample()
 
         remaining = session.total_chunks - len(session.uploaded_chunks)
 
@@ -178,7 +177,8 @@ class ChunkedUploadService:
             raise ValueError(f"Missing {missing} chunks")
 
         file_id = str(uuid.uuid4())
-        final_path = base_dir / f"{file_id}_{session.filename}"
+        chunked_dir = base_dir / "chunked"
+        final_path = chunked_dir / f"{file_id}_{session.filename}"
         chunk_dir = base_dir / session_id
 
         async with aiofiles.open(final_path, "wb") as outfile:
@@ -187,6 +187,9 @@ class ChunkedUploadService:
                 async with aiofiles.open(chunk_path, "rb") as infile:
                     content = await infile.read()
                     await outfile.write(content)
+
+        import shutil
+        shutil.rmtree(chunk_dir, ignore_errors=True)
 
         collector = cls._collectors.get(session_id)
         if collector:
@@ -206,7 +209,6 @@ class ChunkedUploadService:
         logger.info(f"Chunk upload completed: {file_id} ({session.total_chunks} chunks merged)")
 
         return ChunkCompleteResponse(
-            file_id=file_id,
             filename=session.filename,
             total_size=session.total_size,
             total_chunks=session.total_chunks,

@@ -19,13 +19,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIRS = [
-    "uploads/simple",
-    "uploads/chunked",
-    "uploads/streaming",
-    "uploads/s3",
-    "uploads/benchmark",
-    "uploads/sessions",
-    "uploads/history",
+    "app/uploads/simple",
+    "app/uploads/chunked",
+    "app/uploads/streaming",
+    "app/uploads/s3",
+    "app/uploads/benchmark",
+    "app/uploads/sessions",
+    "app/uploads/history",
 ]
 
 @asynccontextmanager

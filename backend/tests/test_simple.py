@@ -15,3 +15,5 @@ def test_simple_upload(file_path: str, size: int, type: str):
 
     print(f"응답 코드: {response.status_code}")
     print(f"응답: {response.json()}")
+
+# test_simple_upload(UPLOAD_PATH, size=500, type="MB")
