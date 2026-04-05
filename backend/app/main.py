@@ -8,7 +8,7 @@ from app.router.upload import (
     simple_router,
     streaming_router,
     chunked_router,
-
+    s3_router,
 )
 from app.router.clean_up_router import admin_router
 
@@ -19,13 +19,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIRS = [
-    "app/uploads/simple",
-    "app/uploads/chunked",
-    "app/uploads/streaming",
-    "app/uploads/s3",
-    "app/uploads/benchmark",
-    "app/uploads/sessions",
-    "app/uploads/history",
+    "uploads/simple",
+    "uploads/chunked",
+    "uploads/streaming",
+    "uploads/s3",
+    "uploads/benchmark",
+    "uploads/sessions",
+    "uploads/history",
 ]
 
 @asynccontextmanager
@@ -40,7 +40,6 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("Application shutdown")
-
 
 
 app = FastAPI(
@@ -61,4 +60,5 @@ app.add_middleware(
 app.include_router(simple_router)
 app.include_router(streaming_router)
 app.include_router(chunked_router)
+app.include_router(s3_router)
 app.include_router(admin_router)
